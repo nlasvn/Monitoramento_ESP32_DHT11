@@ -17,8 +17,6 @@ const int daylightOffset_sec = 0;
 WiFiServer server(80);
 DHT dht(DHTPIN, DHTTYPE);
 
-// float umidade, temperatura;
-
 // put function declarations here:
 String getDateTime();
 void handleClientRequest(WiFiClient &client, float temperatura, float umidade);
