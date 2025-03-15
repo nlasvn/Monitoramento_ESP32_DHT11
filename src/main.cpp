@@ -17,10 +17,15 @@ const int daylightOffset_sec = 0;
 WiFiServer server(80);
 DHT dht(DHTPIN, DHTTYPE);
 
+struct SensorData
+{
+  float temperatura;
+  float umidade;
+};
+
 // put function declarations here:
 String getDateTime();
-void handleClientRequest(WiFiClient &client, float temperatura, float umidade);
-void sendHttpResponse(WiFiClient &client, float temperatura, float umidade, String dateTime);
+void sendHttpResponse(WiFiClient &client, SensorData sensorData, String dateTime);
 
 void setup()
 {
@@ -49,15 +54,42 @@ void setup()
 
 void loop()
 {
-  float temperatura = dht.readTemperature();
-  float umidade = dht.readHumidity();
+  SensorData sensorData;
+  sensorData.temperatura = dht.readTemperature();
+  sensorData.umidade = dht.readHumidity();
 
   WiFiClient client = server.available();
 
   if (client)
   {
     Serial.println("Nova requisição.");
-    handleClientRequest(client, temperatura, umidade);
+    String currentLine = "";
+
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        char c = client.read();
+        Serial.write(c);
+        if (c == '\n')
+        {
+          if (currentLine.length() == 0)
+          {
+            String dateTime = getDateTime();
+            sendHttpResponse(client, sensorData, dateTime);
+            break;
+          }
+          else
+          {
+            currentLine = "";
+          }
+        }
+        else if (c != '\r')
+        {
+          currentLine += c;
+        }
+      }
+    }
     client.stop();
   }
 }
@@ -78,38 +110,7 @@ String getDateTime()
   return String(buffer);
 }
 
-void handleClientRequest(WiFiClient &client, float temperatura, float umidade)
-{
-  String currentLine = "";
-
-  while (client.connected())
-  {
-    if (client.available())
-    {
-      char c = client.read();
-      Serial.write(c);
-      if (c == '\n')
-      {
-        if (currentLine.length() == 0)
-        {
-          String dateTime = getDateTime();
-          sendHttpResponse(client, temperatura, umidade, dateTime);
-          break;
-        }
-        else
-        {
-          currentLine = "";
-        }
-      }
-      else if (c != '\r')
-      {
-        currentLine += c;
-      }
-    }
-  }
-}
-
-void sendHttpResponse(WiFiClient &client, float temperatura, float umidade, String dateTime)
+void sendHttpResponse(WiFiClient &client, SensorData sensorData, String dateTime)
 {
   // Cabeçalhos HTTP
   client.println("HTTP/1.1 200 OK");
@@ -208,14 +209,14 @@ void sendHttpResponse(WiFiClient &client, float temperatura, float umidade, Stri
                  "<i class='fas fa-thermometer-half icon temp-icon'></i>");
   // Temperatura
   client.print("Temperatura: ");
-  client.print(temperatura);
+  client.print(sensorData.temperatura);
   client.println(" ºC</div>");
 
   // Umidade
   client.println("<div class='info-box'>"
                  "<i class='fas fa-tint icon umidade-icon'></i>"
                  "Umidade: ");
-  client.print(umidade);
+  client.print(sensorData.umidade);
   client.println(" %</div>");
 
   // Última atualização
